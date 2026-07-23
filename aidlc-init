@@ -1,0 +1,180 @@
+#!/bin/bash
+#
+# aidlc-init — bootstrap the current directory with AI-DLC workflow
+# https://github.com/vdhanota/aidlc-init
+#
+# Usage: aidlc-init -v <1|2> -e <platform>
+#
+#   v1 platforms: kiro | q | cursor | cline | claude | copilot | codex
+#   v2 platforms: kiro | kiro-ide | claude | codex | opencode
+#
+# More details: https://github.com/awslabs/aidlc-workflows
+#
+
+set -euo pipefail
+
+REPO="https://github.com/awslabs/aidlc-workflows.git"
+PROJECT_DIR="$(pwd)"
+V1_PLATFORMS="kiro q cursor cline claude copilot codex"
+V2_PLATFORMS="kiro kiro-ide claude codex opencode"
+
+usage() {
+    cat <<EOF
+Usage: aidlc-init -v <1|2> -e <platform>
+
+Options:
+  -v    AI-DLC version: 1 or 2
+  -e    Target platform:
+          v1: kiro | q | cursor | cline | claude | copilot | codex
+          v2: kiro | kiro-ide | claude | codex | opencode
+  -h    Show this help
+
+Examples:
+  aidlc-init -v 1 -e claude     # AI-DLC v1 rules for Claude Code
+  aidlc-init -v 2 -e kiro       # AI-DLC v2 skills for Kiro CLI
+EOF
+    exit "${1:-0}"
+}
+
+fail() { echo "Error: $1" >&2; exit 1; }
+
+# parse args
+[ $# -eq 0 ] && usage 0
+
+VERSION="" PLATFORM=""
+while getopts "v:e:h" opt; do
+    case "$opt" in
+        v) VERSION="$OPTARG" ;;
+        e) PLATFORM="$OPTARG" ;;
+        h) usage 0 ;;
+        *) usage 1 ;;
+    esac
+done
+
+[ -n "$VERSION" ] && [ -n "$PLATFORM" ] || usage 1
+case "$VERSION" in 1|2) ;; *) fail "invalid version '$VERSION' (expected 1 or 2)" ;; esac
+
+VALID=$([ "$VERSION" = "1" ] && echo "$V1_PLATFORMS" || echo "$V2_PLATFORMS")
+case " $VALID " in
+    *" $PLATFORM "*) ;;
+    *) fail "platform '$PLATFORM' is not supported by AI-DLC v$VERSION (options: $VALID)" ;;
+esac
+
+# checks
+command -v git >/dev/null 2>&1 || fail "git is required but not installed"
+
+if [ "$VERSION" = "2" ] && ! command -v bun >/dev/null 2>&1; then
+    echo "Warning: AI-DLC v2 requires bun at runtime (hooks and CLI tools)."
+    echo "         Install it with: curl -fsSL https://bun.sh/install | bash"
+fi
+
+# clone aidlc repo
+BRANCH=$([ "$VERSION" = "1" ] && echo "main" || echo "v2")
+CLONE_DIR="$(mktemp -d)"
+trap 'rm -rf "$CLONE_DIR"' EXIT
+
+echo "AI-DLC v$VERSION init for '$PLATFORM' in $PROJECT_DIR"
+git clone --quiet --depth 1 -b "$BRANCH" "$REPO" "$CLONE_DIR/repo" \
+    || fail "failed to clone $REPO (branch $BRANCH)"
+
+# Some idempotency for existing .aidlc files
+install_file() {
+    local src="$1" dest="$2" name
+    name="$(basename "$dest")"
+    if [ -e "$dest" ]; then
+        cmp -s "$src" "$dest" && return 0
+        cp "$src" "$dest.aidlc-new"
+        echo "  ! $name already exists — new version saved as $name.aidlc-new (merge manually)"
+    else
+        cp "$src" "$dest"
+    fi
+}
+
+# Copy content into the project and merging existing directories
+copy_tree() {
+    local src="$1" item name
+    for item in "$src"/* "$src"/.[!.]*; do
+        [ -e "$item" ] || continue
+        name="$(basename "$item")"
+        if [ -d "$item" ]; then
+            mkdir -p "$PROJECT_DIR/$name"
+            cp -R "$item/." "$PROJECT_DIR/$name/"
+        else
+            install_file "$item" "$PROJECT_DIR/$name"
+        fi
+    done
+}
+
+# v1 setup
+setup_v1() {
+    local rules="$CLONE_DIR/repo/aidlc-rules"
+    local core="$rules/aws-aidlc-rules/core-workflow.md"
+
+    case "$PLATFORM" in
+        kiro)
+            mkdir -p "$PROJECT_DIR/.kiro/steering"
+            cp -R "$rules/aws-aidlc-rules" "$PROJECT_DIR/.kiro/steering/"
+            cp -R "$rules/aws-aidlc-rule-details" "$PROJECT_DIR/.kiro/"
+            ;;
+        q)
+            mkdir -p "$PROJECT_DIR/.amazonq/rules"
+            cp -R "$rules/aws-aidlc-rules" "$PROJECT_DIR/.amazonq/rules/"
+            cp -R "$rules/aws-aidlc-rule-details" "$PROJECT_DIR/.amazonq/"
+            ;;
+        cursor)
+            mkdir -p "$PROJECT_DIR/.cursor/rules"
+            {
+                printf -- '---\ndescription: "AI-DLC (AI-Driven Development Life Cycle) adaptive workflow for software development"\nalwaysApply: true\n---\n\n'
+                cat "$core"
+            } > "$PROJECT_DIR/.cursor/rules/ai-dlc-workflow.mdc"
+            mkdir -p "$PROJECT_DIR/.aidlc-rule-details"
+            cp -R "$rules/aws-aidlc-rule-details/." "$PROJECT_DIR/.aidlc-rule-details/"
+            ;;
+        cline)
+            mkdir -p "$PROJECT_DIR/.clinerules"
+            cp "$core" "$PROJECT_DIR/.clinerules/core-workflow.md"
+            mkdir -p "$PROJECT_DIR/.aidlc-rule-details"
+            cp -R "$rules/aws-aidlc-rule-details/." "$PROJECT_DIR/.aidlc-rule-details/"
+            ;;
+        claude)
+            install_file "$core" "$PROJECT_DIR/CLAUDE.md"
+            mkdir -p "$PROJECT_DIR/.aidlc-rule-details"
+            cp -R "$rules/aws-aidlc-rule-details/." "$PROJECT_DIR/.aidlc-rule-details/"
+            ;;
+        copilot)
+            mkdir -p "$PROJECT_DIR/.github"
+            install_file "$core" "$PROJECT_DIR/.github/copilot-instructions.md"
+            mkdir -p "$PROJECT_DIR/.aidlc-rule-details"
+            cp -R "$rules/aws-aidlc-rule-details/." "$PROJECT_DIR/.aidlc-rule-details/"
+            ;;
+        codex)
+            install_file "$core" "$PROJECT_DIR/AGENTS.md"
+            mkdir -p "$PROJECT_DIR/.aidlc-rule-details"
+            cp -R "$rules/aws-aidlc-rule-details/." "$PROJECT_DIR/.aidlc-rule-details/"
+            ;;
+    esac
+    echo "Done. AI-DLC v1 rules installed for $PLATFORM."
+    echo "Start a session and say: \"Using AI-DLC, <your intent>\""
+}
+
+# v2 setup
+setup_v2() {
+    local dist="$CLONE_DIR/repo/dist/$PLATFORM"
+    [ -d "$dist" ] || fail "dist/$PLATFORM not found in the v2 branch"
+
+    copy_tree "$dist"
+    echo "Done. AI-DLC v2 installed for $PLATFORM."
+    case "$PLATFORM" in
+        codex)    echo "Run '\$aidlc --doctor' in a Codex session to verify." ;;
+        *)        echo "Run '/aidlc --doctor' in a session to verify." ;;
+    esac
+}
+
+# Keeps `set -e` active inside the setup functions
+if [ "$VERSION" = "1" ]; then
+    setup_v1
+else
+    setup_v2
+fi
+
+exit 0
