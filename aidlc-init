@@ -1,15 +1,11 @@
 #!/bin/bash
 #
-# aidlc-init — bootstrap the current directory with AI-DLC workflow
-# https://github.com/vdhanota/aidlc-init
+# aidlc-init — bootstrap the current directory with AI-DLC workflow rules.
 #
 # Usage: aidlc-init -v <1|2> -e <platform>
 #
 #   v1 platforms: kiro | q | cursor | cline | claude | copilot | codex
 #   v2 platforms: kiro | kiro-ide | claude | codex | opencode
-#
-# More details: https://github.com/awslabs/aidlc-workflows
-#
 
 set -euo pipefail
 
@@ -38,7 +34,7 @@ EOF
 
 fail() { echo "Error: $1" >&2; exit 1; }
 
-# parse args
+# args
 [ $# -eq 0 ] && usage 0
 
 VERSION="" PLATFORM=""
@@ -68,7 +64,7 @@ if [ "$VERSION" = "2" ] && ! command -v bun >/dev/null 2>&1; then
     echo "         Install it with: curl -fsSL https://bun.sh/install | bash"
 fi
 
-# clone aidlc repo
+# clone repo
 BRANCH=$([ "$VERSION" = "1" ] && echo "main" || echo "v2")
 CLONE_DIR="$(mktemp -d)"
 trap 'rm -rf "$CLONE_DIR"' EXIT
@@ -77,7 +73,7 @@ echo "AI-DLC v$VERSION init for '$PLATFORM' in $PROJECT_DIR"
 git clone --quiet --depth 1 -b "$BRANCH" "$REPO" "$CLONE_DIR/repo" \
     || fail "failed to clone $REPO (branch $BRANCH)"
 
-# Some idempotency for existing .aidlc files
+# Install a file; skip if identical, preserve existing as .aidlc-new if different.
 install_file() {
     local src="$1" dest="$2" name
     name="$(basename "$dest")"
@@ -90,7 +86,7 @@ install_file() {
     fi
 }
 
-# Copy content into the project and merging existing directories
+# Copy directory contents, merging existing directories.
 copy_tree() {
     local src="$1" item name
     for item in "$src"/* "$src"/.[!.]*; do
@@ -170,7 +166,7 @@ setup_v2() {
     esac
 }
 
-# Keeps `set -e` active inside the setup functions
+# Keep `set -e` active inside the setup functions
 if [ "$VERSION" = "1" ]; then
     setup_v1
 else
