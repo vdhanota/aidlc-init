@@ -12,17 +12,18 @@ curl -fsSL -o ~/bin/aidlc-init https://raw.githubusercontent.com/vdhanota/aidlc-
 chmod +x ~/bin/aidlc-init
 ```
 
-If `~/bin` isn't on your `PATH`, add it to your shell profile:
+Install bun for AIDLC v2, v1 does not need this.
 
 ```bash
-export PATH="$HOME/bin:$PATH"
+curl -fsSL https://bun.sh/install | bash
 ```
 
 ## Usage
 
 ```bash
+
 cd your-project
-aidlc-init -v <1|2> -e <platform>
+aidlc-init -v VERSION -e PLATFORM
 ```
 
 | Version | Platforms |
