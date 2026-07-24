@@ -2,6 +2,16 @@
 
 Bootstrap the current directory with [AI-DLC](https://github.com/awslabs/aidlc-workflows) (AI-Driven Development Life Cycle) workflow rules for your coding agent.
 
+
+## Requirements
+
+- `git` (required)
+- [`bun`](https://bun.sh) (v2 only — needed at runtime)
+  ```bash
+  curl -fsSL https://bun.sh/install | bash
+  ```
+
+
 ## Install
 
 Put the script in `~/bin` (or any directory on your `PATH`):
@@ -10,12 +20,6 @@ Put the script in `~/bin` (or any directory on your `PATH`):
 mkdir -p ~/bin
 curl -fsSL -o ~/bin/aidlc-init https://raw.githubusercontent.com/vdhanota/aidlc-init/main/aidlc-init
 chmod +x ~/bin/aidlc-init
-```
-
-Install bun for AIDLC v2, v1 does not need this.
-
-```bash
-curl -fsSL https://bun.sh/install | bash
 ```
 
 ## Usage
@@ -39,11 +43,6 @@ aidlc-init -v 1 -e claude    # AI-DLC v1 for Claude Code — say "Using AI-DLC, 
 ```
 
 Run `aidlc-init` with no arguments for help.
-
-## Requirements
-
-- `git` (required)
-- [`bun`](https://bun.sh) (v2 only — needed at runtime; the script warns if missing)
 
 ## Good to Know
 
